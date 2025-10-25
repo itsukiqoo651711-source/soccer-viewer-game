@@ -1,7 +1,7 @@
-// public/game.js (全文)
+// public/game.js (サイズ調整版)
 const socket = io();
 
-// UI要素のDOM参照
+// UI要素のDOM参照 (省略)
 const homeScoreElement = document.getElementById('home-score');
 const awayScoreElement = document.getElementById('away-score');
 const gameTimerElement = document.getElementById('game-timer');
@@ -66,6 +66,9 @@ function create() {
                 clientPlayer.setOrigin(0.5, 0.9); 
                 players[id] = clientPlayer;
 
+                // ★修正点：選手のサイズを0.2から0.14へ調整 (0.7倍)
+                clientPlayer.setScale(0.14); 
+
                 clientPlayer.nameText = this.add.text(serverPlayer.x, serverPlayer.y - 20, `${serverPlayer.id.replace('player', 'P')}`, {
                     font: '12px Arial',
                     fill: '#fff',
@@ -80,11 +83,6 @@ function create() {
             clientPlayer.setDepth(clientPlayer.y);
             clientPlayer.nameText.setDepth(clientPlayer.y); 
             clientPlayer.nameText.setPosition(clientPlayer.x, clientPlayer.y - clientPlayer.displayHeight / 2 - 5);
-
-            const minScale = 0.15; 
-            const maxScale = 0.25; 
-            const scaleFactor = minScale + (maxScale - minScale) * (clientPlayer.y / config.height);
-            clientPlayer.setScale(scaleFactor);
 
             if (serverPlayer.isBallHolder) {
                 if (playerStatusPanel.style.display === 'none') {

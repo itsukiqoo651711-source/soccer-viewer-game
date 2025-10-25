@@ -1,4 +1,4 @@
-// server.js (サイド活用版)
+// server.js (最終・スルーパス搭載版)
 const express = require('express');
 const http = require('http'); 
 const socketio = require('socket.io'); 
@@ -24,18 +24,20 @@ const FIELD_WIDTH = 800;
 const FIELD_HEIGHT = 600; 
 const PLAYER_SPEED = 2.5; 
 const BALL_DRAG = 0.98;
+const CENTER_Y = FIELD_HEIGHT / 2;
+const LEFT_SIDE_Y = FIELD_HEIGHT * 0.15; 
+const RIGHT_SIDE_Y = FIELD_HEIGHT * 0.85; 
 
 // --- プレイヤーの初期化 (10人分) ---
 for (let i = 0; i < 10; i++) {
     const playerId = `player${i}`;
     
-    // 役割を決定 (GK, DF-L, DF-R, FW-L, FW-R)
-    let role = 'FW-R'; // デフォルト
-    if (i === 0 || i === 5) role = 'GK'; // 0, 5: GK
-    if (i === 1 || i === 6) role = 'DF-L'; // 1, 6: DF-L (左)
-    if (i === 2 || i === 7) role = 'DF-R'; // 2, 7: DF-R (右)
-    if (i === 3 || i === 8) role = 'FW-L'; // 3, 8: FW-L (左)
-    if (i === 4 || i === 9) role = 'FW-R'; // 4, 9: FW-R (右)
+    let role = 'FW-R'; 
+    if (i === 0 || i === 5) role = 'GK'; 
+    if (i === 1 || i === 6) role = 'DF-L'; 
+    if (i === 2 || i === 7) role = 'DF-R'; 
+    if (i === 3 || i === 8) role = 'FW-L'; 
+    if (i === 4 || i === 9) role = 'FW-R'; 
 
     gameState.players[playerId] = {
         id: playerId,
@@ -44,14 +46,16 @@ for (let i = 0; i < 10; i++) {
         vx: 0,
         vy: 0,
         team: i < 5 ? 'home' : 'away',
-        role: role, // ★役割にサイド情報を含める
+        role: role, 
         isBallHolder: false, 
         targetX: Math.random() * FIELD_WIDTH,
         targetY: Math.random() * FIELD_HEIGHT,
         stats: { 
             speed: 70 + Math.floor(Math.random() * 30),
             shot: 50 + Math.floor(Math.random() * 50),
-            pass: 50 + Math.floor(Math.random() * 50)
+            pass: 50 + Math.floor(Math.random() * 50),
+            dribble: 70 + Math.floor(Math.random() * 30),
+            tackle: 70 + Math.floor(Math.random() * 30)
         }
     };
 }
@@ -94,8 +98,23 @@ function startGameLoop() {
     }, GAME_TICK_INTERVAL);
 }
 
+// --- 簡易的な「スペース」チェック関数 ---
+function countOpponentsNear(x, y, team) {
+    let count = 0;
+    for (const id in gameState.players) {
+        const p = gameState.players[id];
+        if (p.team !== team && p.role !== 'GK') {
+            const dist = Math.sqrt(Math.pow(p.x - x, 2) + Math.pow(p.y - y, 2));
+            if (dist < 100) {
+                count++;
+            }
+        }
+    }
+    return count;
+}
 
-// --- AIロジック (サイド活用版) ---
+
+// --- AIロジック (最終・スルーパス搭載版) ---
 function updateAI() {
     let closestPlayerToBall = null;
     let minDistanceToBall = Infinity;
@@ -122,23 +141,22 @@ function updateAI() {
 
         const isLeft = player.role.endsWith('-L');
         const isRight = player.role.endsWith('-R');
+        const targetGoalX = (player.team === 'home') ? FIELD_WIDTH - 50 : 50;
+        const targetGoalY = CENTER_Y;
         
-        // サイドポジションのY座標を決定
-        let sideY;
+        let mySideY;
         if (isLeft) {
-            sideY = FIELD_HEIGHT * 0.25; // 上側 (左サイド)
+            mySideY = LEFT_SIDE_Y;
         } else if (isRight) {
-            sideY = FIELD_HEIGHT * 0.75; // 下側 (右サイド)
+            mySideY = RIGHT_SIDE_Y;
         } else {
-            sideY = FIELD_HEIGHT * 0.5; // 中央
+            mySideY = CENTER_Y;
         }
 
 
         // --- ボール保持者 (ドリブル/シュート/パスの判断) ---
         if (player.isBallHolder) {
             
-            const targetGoalX = (player.team === 'home') ? FIELD_WIDTH - 50 : 50;
-            const targetGoalY = FIELD_HEIGHT / 2;
             const distToGoal = Math.sqrt(Math.pow(targetGoalX - player.x, 2) + Math.pow(targetGoalY - player.y, 2));
 
             // 1. パス候補の選定
@@ -151,17 +169,9 @@ function updateAI() {
                     const otherDistToGoal = Math.sqrt(Math.pow(targetGoalX - otherPlayer.x, 2) + Math.pow(targetGoalY - otherPlayer.y, 2));
                     
                     let isOpen = true;
-                    for (const opponentId in gameState.players) {
-                        const opponent = gameState.players[opponentId];
-                        if (opponent.team !== player.team) {
-                            const distToOpponent = Math.sqrt(Math.pow(opponent.x - otherPlayer.x, 2) + Math.pow(opponent.y - otherPlayer.y, 2));
-                            if (distToOpponent < 50) { 
-                                isOpen = false;
-                                break;
-                            }
-                        }
+                    if (countOpponentsNear(otherPlayer.x, otherPlayer.y, otherPlayer.team) > 0) {
+                        isOpen = false;
                     }
-
                     if (isOpen) {
                         const score = (FIELD_WIDTH - otherDistToGoal) * 1.5; 
                         
@@ -174,57 +184,65 @@ function updateAI() {
             }
             
             // 2. 行動の決定 (シュート vs パス vs ドリブル)
-            if (player.role.startsWith('FW') || (player.role.startsWith('DF') && distToGoal < FIELD_WIDTH * 0.5)) { 
+            const shotAttractiveness = (1 - distToGoal / FIELD_WIDTH) * 100;
+
+            // パスの試行
+            if (passTarget && bestPassScore > 0 && bestPassScore > shotAttractiveness * 0.5 && Math.random() < 0.3) { 
                 
-                const shotAttractiveness = (1 - distToGoal / FIELD_WIDTH) * 100;
+                // ★スルーパスロジック：ターゲットの移動ベクトルを予測
+                const PREDICTION_FRAMES = 50; // 50フレーム先の位置を予測（約0.8秒後）
+                
+                let predictedX = passTarget.x + passTarget.vx * PREDICTION_FRAMES;
+                let predictedY = passTarget.y + passTarget.vy * PREDICTION_FRAMES;
+                
+                // フィールド境界で予測位置をクランプ
+                predictedX = Math.max(10, Math.min(FIELD_WIDTH - 10, predictedX));
+                predictedY = Math.max(10, Math.min(FIELD_HEIGHT - 10, predictedY));
 
-                if (passTarget && bestPassScore > 0 && bestPassScore > shotAttractiveness * 0.5) { 
-                    
-                    if (Math.random() < 0.3) { 
-                        const passVectorX = passTarget.x - player.x;
-                        const passVectorY = passTarget.y - player.y;
-                        const distToTarget = Math.sqrt(Math.pow(passVectorX, 2) + Math.pow(passVectorY, 2));
+                const passVectorX = predictedX - player.x; // 予測位置へパス
+                const passVectorY = predictedY - player.y;
+                const distToTarget = Math.sqrt(Math.pow(passVectorX, 2) + Math.pow(passVectorY, 2));
 
-                        const passPower = (player.stats.pass / 100) * 12; 
+                const passPower = (player.stats.pass / 100) * 12; 
 
-                        gameState.ball.vx = (passVectorX / distToTarget) * passPower;
-                        gameState.ball.vy = (passVectorY / distToTarget) * passPower;
+                gameState.ball.vx = (passVectorX / distToTarget) * passPower;
+                gameState.ball.vy = (passVectorY / distToTarget) * passPower;
 
-                        player.isBallHolder = false;
-                        console.log(`Pass: ${player.id} -> ${passTarget.id}`);
-                        
-                        player.targetX = player.x;
-                        player.targetY = player.y;
-                        player.vx = 0;
-                        player.vy = 0;
-                        continue; 
-                    }
-                } 
+                player.isBallHolder = false;
+                console.log(`Through Pass: ${player.id} -> ${passTarget.id}`);
+                
+                continue; 
+            } 
 
-                if (distToGoal < 150 && Math.random() < (0.05 + (1 - distToGoal / FIELD_WIDTH) * 0.1)) {
-                    const angleToGoal = Math.atan2(targetGoalY - player.y, targetGoalX - player.x);
-                    const shotPower = (player.stats.shot / 100) * 15;
-                    gameState.ball.vx = Math.cos(angleToGoal) * shotPower;
-                    gameState.ball.vy = Math.sin(angleToGoal) * shotPower;
-                    player.isBallHolder = false;
-                    console.log(`Shot: ${player.id}`);
-                    
-                    player.targetX = player.x;
-                    player.targetY = player.y;
-                    player.vx = 0;
-                    player.vy = 0;
-                    continue; 
-                }
+            // シュートの試行
+            // ★修正点：シュートレンジを300pxに拡大
+            if (distToGoal < 300 && Math.random() < (0.1 + (1 - distToGoal / FIELD_WIDTH) * 0.15)) {
+                const angleToGoal = Math.atan2(targetGoalY - player.y, targetGoalX - player.x);
+                const shotPower = (player.stats.shot / 100) * 15;
+                gameState.ball.vx = Math.cos(angleToGoal) * shotPower;
+                gameState.ball.vy = Math.sin(angleToGoal) * shotPower;
+                player.isBallHolder = false;
+                console.log(`Shot: ${player.id}`);
+                
+                continue; 
             }
 
-            // パスもシュートもしない場合はドリブル（ゴールに向かう）
-            const angleToGoal = Math.atan2(targetGoalY - player.y, targetGoalX - player.x);
-            player.targetX = player.x + Math.cos(angleToGoal) * PLAYER_SPEED;
-            player.targetY = player.y + Math.sin(angleToGoal) * PLAYER_SPEED;
+            // ドリブル (パスもシュートもしない場合)
+            const opponentsInCenter = countOpponentsNear(player.x, CENTER_Y, player.team);
+            
+            if (opponentsInCenter > 1 && distToGoal > 200) {
+                player.targetX = player.x + (targetGoalX - player.x) * 0.1; 
+                player.targetY = mySideY;
+            } else {
+                player.targetX = targetGoalX;
+                player.targetY = targetGoalY;
+            }
 
         } 
         // --- 非ボール保持者 (ポジションとボールへのアプローチ) ---
         else {
+            // ... (非保持者のロジックは省略) ...
+            
             switch (player.role) {
                 case 'GK':
                     const goalLineX = (player.team === 'home') ? 50 : FIELD_WIDTH - 50;
@@ -238,23 +256,33 @@ function updateAI() {
                     const ballInDefenseArea = (player.team === 'home' && gameState.ball.x < FIELD_WIDTH / 2) || 
                                               (player.team === 'away' && gameState.ball.x > FIELD_WIDTH / 2);
 
-                    if (ballInDefenseArea && minDistanceToBall < 200) { 
+                    if (ballInDefenseArea && minDistanceToBall < 150) { 
                         player.targetX = gameState.ball.x;
                         player.targetY = gameState.ball.y;
                     } else {
                         player.targetX = defenseLineX;
-                        // ★DFは自分のサイドY座標に固定して広がる
-                        player.targetY = sideY;
+                        player.targetY = mySideY;
                     }
                     break;
 
                 case 'FW-L':
                 case 'FW-R':
+                    const attackLineX = (player.team === 'home') ? FIELD_WIDTH * 0.75 : FIELD_WIDTH * 0.25;
+
                     if (closestPlayerToBall && closestPlayerToBall.team === player.team) {
-                        const supportOffset = player.team === 'home' ? -80 : 80; 
-                        player.targetX = closestPlayerToBall.x + supportOffset;
-                        // ★FWのサポート位置も自分のサイドY座標に固定
-                        player.targetY = sideY + (Math.random() - 0.5) * 50; // 50pxのランダム幅
+                        
+                        const ballIsLeft = gameState.ball.y < CENTER_Y;
+                        const ballIsRight = gameState.ball.y > CENTER_Y;
+
+                        if ((isLeft && ballIsRight) || (isRight && ballIsLeft)) {
+                            player.targetX = attackLineX;
+                            player.targetY = mySideY;
+                        } else {
+                            const supportOffset = player.team === 'home' ? -80 : 80; 
+                            player.targetX = closestPlayerToBall.x + supportOffset;
+                            player.targetY = mySideY + (Math.random() - 0.5) * 50;
+                        }
+                        
                     } 
                     else {
                          const attackLineX = (player.team === 'home') ? FIELD_WIDTH * 0.75 : FIELD_WIDTH * 0.25;
@@ -263,16 +291,14 @@ function updateAI() {
                             player.targetY = gameState.ball.y;
                          } else {
                             player.targetX = attackLineX;
-                            // ★攻撃待機位置もサイドY座標に固定
-                            player.targetY = sideY;
+                            player.targetY = mySideY;
                          }
                     }
                     break;
                 
                 default:
-                    // 何も役割が割り振られていない選手への安全策（このコードでは発生しないはず）
                     player.targetX = FIELD_WIDTH * 0.5;
-                    player.targetY = FIELD_HEIGHT * 0.5;
+                    player.targetY = CENTER_Y;
                     break;
             }
         }
@@ -288,6 +314,43 @@ function updateAI() {
         } else {
             player.vx = (Math.random() - 0.5) * 0.1;
             player.vy = (Math.random() - 0.5) * 0.1;
+        }
+    }
+    
+    // --- ドリブル突破判定 ---
+    if (closestPlayerToBall && closestPlayerToBall.isBallHolder) {
+        const dribbler = closestPlayerToBall;
+        for (const id in gameState.players) {
+            const opponent = gameState.players[id];
+            if (opponent.team !== dribbler.team && opponent.role !== 'GK') {
+                const dist = Math.sqrt(Math.pow(opponent.x - dribbler.x, 2) + Math.pow(opponent.y - dribbler.y, 2));
+                
+                if (dist < 20) { // 接触した場合
+                    const dribbleSkill = dribbler.stats.dribble;
+                    const tackleSkill = opponent.stats.tackle;
+                    
+                    // ★修正点：ドリブル成功確率に1.5倍の補正を適用
+                    const breakthroughChance = (dribbleSkill / (dribbleSkill + tackleSkill)) * 1.5; 
+                    
+                    if (Math.random() > breakthroughChance) { 
+                        // 突破失敗: ボールロスト
+                        dribbler.isBallHolder = false;
+                        gameState.ball.vx = opponent.vx * 0.5; 
+                        gameState.ball.vy = opponent.vy * 0.5;
+                        console.log(`Tackle: ${opponent.id} WINS over ${dribbler.id}`);
+                        
+                        dribbler.vx *= -0.5;
+                        dribbler.vy *= -0.5;
+                        
+                        return;
+                    } else {
+                        // 突破成功
+                        console.log(`Dribble: ${dribbler.id} BREAKS ${opponent.id}`);
+                        opponent.vx *= -1.5;
+                        opponent.vy *= -1.5;
+                    }
+                }
+            }
         }
     }
 }
@@ -309,7 +372,6 @@ function updatePhysics() {
             gameState.ball.vy = player.vy;
         }
     }
-    // ボールの移動、摩擦、境界・ゴール衝突判定 (省略)
     gameState.ball.x += gameState.ball.vx;
     gameState.ball.y += gameState.ball.vy;
     gameState.ball.vx *= BALL_DRAG;
@@ -340,7 +402,7 @@ function updatePhysics() {
             player.isBallHolder = false;
         } 
         else if (player.role !== 'GK' && dist < 20) { 
-            if (Math.abs(gameState.ball.vx) < 5 && Math.abs(gameState.ball.vy) < 5) {
+            if (Math.abs(gameState.ball.vx) < 10 && Math.abs(gameState.ball.vy) < 10) {
                  gameState.ball.vx += player.vx * 0.5;
                  gameState.ball.vy += player.vy * 0.5;
                  player.isBallHolder = true; 
@@ -349,11 +411,12 @@ function updatePhysics() {
     }
 }
 
-// ゴール後のリセット (ランダム配置)
+// ゴール後のリセット (ボール強制放出機能追加)
 function resetBallAndPlayers(isInitialStart = false) {
     if (isInitialStart || gameState.score.home > 0 || gameState.score.away > 0) {
          gameState.ball = { x: FIELD_WIDTH / 2, y: FIELD_HEIGHT / 2, vx: 0, vy: 0 };
     }
+    
     for (const id in gameState.players) {
         const player = gameState.players[id];
         player.x = Math.random() * FIELD_WIDTH; 
@@ -363,6 +426,18 @@ function resetBallAndPlayers(isInitialStart = false) {
         player.isBallHolder = false;
         player.targetX = player.x;
         player.targetY = player.y;
+    }
+    
+    if (isInitialStart || gameState.score.home > 0 || gameState.score.away > 0) {
+        gameState.ball.x = FIELD_WIDTH / 2;
+        gameState.ball.y = CENTER_Y;
+        
+        gameState.ball.vx = 10;
+        gameState.ball.vy = 0; 
+        
+        for (const id in gameState.players) {
+            gameState.players[id].isBallHolder = false;
+        }
     }
 }
 

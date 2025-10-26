@@ -5,118 +5,120 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>オートプレイサッカー観戦</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #333; }
+        body { margin: 0; overflow: hidden; background-color: #333; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        #app-container { display: flex; width: 1200px; height: 640px; }
         #game-container {
-            width: 800px; /* Phaserキャンバスの幅に合わせる */
-            height: 600px; /* Phaserキャンバスの高さに合わせる */
-            margin: 20px auto; /* 中央に配置し、少し余白 */
-            border: 2px solid #555;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
-            position: relative; /* UI要素の基準 */
+            width: 800px; height: 600px; border: 2px solid #555; box-shadow: 0 0 10px rgba(0,0,0,0.5); position: relative; margin-right: 10px; 
         }
-        /* UIオーバーレイのスタイル */
         #ui-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none; /* UIを通してゲーム操作を可能にするため */
-            font-family: 'Arial', sans-serif;
-            color: white;
-            text-shadow: 1px 1px 2px black;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; 
+            font-family: 'Arial', sans-serif; color: white; text-shadow: 1px 1px 2px black;
         }
-        .scoreboard {
-            position: absolute;
-            top: 10px;
-            width: 100%;
-            text-align: center;
-            font-size: 24px;
-            font-weight: bold;
-            background-color: rgba(0,0,0,0.5);
-            padding: 5px 0;
-            box-sizing: border-box;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+        /* 左右の選手ステータスパネル */
+        .live-status-panel {
+            position: absolute; top: 60px; width: 220px; background-color: rgba(0,0,0,0.7); padding: 5px 10px; border-radius: 5px; font-size: 14px; pointer-events: none; line-height: 1.6;
         }
-        .scoreboard .team-name {
-            width: 150px;
-            text-align: right;
-            padding-right: 10px;
+        #home-live-status { left: 10px; }
+        #away-live-status { right: 10px; text-align: right; }
+        .live-status-value { font-weight: bold; font-size: 16px; margin-left: 5px; }
+
+        /* 試合メッセージオーバーレイ */
+        #game-message-overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 40px; font-weight: bold; color: yellow; background-color: rgba(0,0,0,0.9); padding: 20px 40px; border-radius: 10px; display: none; text-align: center; pointer-events: auto; cursor: pointer; z-index: 1000;
         }
-        .scoreboard .score {
-            width: 50px;
-            text-align: center;
-        }
-        .scoreboard .timer {
-            margin: 0 20px;
-            width: 80px;
-            text-align: center;
-        }
-        .scoreboard .team-name.away {
-            text-align: left;
-            padding-left: 10px;
-            padding-right: 0;
-        }
-        .player-status {
-            position: absolute;
-            top: 60px;
-            left: 10px;
-            background-color: rgba(0,0,0,0.7);
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 16px;
-        }
-        .autoplay-status {
-            position: absolute;
-            bottom: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: rgba(0,100,0,0.7);
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-size: 18px;
-            font-weight: bold;
-        }
-        .game-over-message {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 48px;
-            font-weight: bold;
-            color: yellow;
-            background-color: rgba(0,0,0,0.8);
-            padding: 20px 40px;
-            border-radius: 10px;
-            display: none; /* 初期は非表示 */
-        }
+        .goal-text { color: #FF4500; font-size: 60px; }
+        .kickoff-text { font-size: 28px; }
+
+        /* スコアボード, オートプレイボタンのスタイル */
+        .scoreboard { position: absolute; top: 10px; width: 100%; text-align: center; font-size: 24px; font-weight: bold; background-color: rgba(0,0,0,0.5); padding: 5px 0; box-sizing: border-box; display: flex; justify-content: center; align-items: center; }
+        .scoreboard .team-name { width: 150px; text-align: right; padding-right: 10px; }
+        .scoreboard .score { width: 50px; text-align: center; }
+        .scoreboard .timer { margin: 0 20px; width: 80px; text-align: center; }
+        .scoreboard .team-name.away { text-align: left; padding-left: 10px; padding-right: 0; }
+        .autoplay-status { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); background-color: rgba(0,100,0,0.7); padding: 8px 15px; border-radius: 20px; font-size: 18px; font-weight: bold; }
+        
+        /* --- チャプター欄 (能力値修正) --- */
+        #chapter-panel { width: 380px; height: 600px; background-color: #222; border: 2px solid #555; color: #eee; font-family: 'Arial', sans-serif; overflow-y: auto; padding: 10px; box-sizing: border-box; }
+        .panel-section { margin-bottom: 15px; padding-bottom: 5px; border-bottom: 1px solid #444; }
+        .panel-section h3 { margin: 5px 0; font-size: 18px; color: #fff; border-left: 4px solid #4CAF50; padding-left: 5px; }
+        .player-list-item { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
+        .player-ranks { width: 250px; display: flex; justify-content: space-between; } /* ★幅を確保 */
+        .player-ranks span { display: inline-block; width: 45px; text-align: center; font-weight: bold; } /* ★各能力の幅を拡大 */
+        .rank-S { color: #FFD700; } .rank-A { color: #FF69B4; } .rank-B { color: #FF4500; }
+        .rank-C { color: #FFA500; } .rank-D { color: #FFFF00; } .rank-E { color: #32CD32; }
+        .scorer-item { font-size: 14px; padding: 2px 0; color: #FFD700; }
     </style>
 </head>
 <body>
-    <div id="game-container">
-        <div id="ui-overlay">
-            <div class="scoreboard">
-                <span id="home-team-name" class="team-name">ホーム</span>
-                <span id="home-score" class="score">0</span>
-                <span id="game-timer" class="timer">20:00</span>
-                <span id="away-score" class="score">0</span>
-                <span id="away-team-name" class="team-name away">アウェイ</span>
+    <div id="app-container">
+        <div id="game-container">
+            <div id="ui-overlay">
+                <div id="game-message-overlay" onclick="sendKickoffSignal()"></div>
+
+                <div class="scoreboard">
+                    <span id="home-team-name" class="team-name">ホーム</span>
+                    <span id="home-score" class="score">0</span>
+                    <span id="game-timer" class="timer">03:00</span>
+                    <span id="away-score" class="score">0</span>
+                    <span id="away-team-name" class="team-name away">アウェイ</span>
+                </div>
+                
+                <div id="home-live-status" class="live-status-panel">
+                    <div id="home-live-name"></div>
+                    <div id="home-live-stat1"></div>
+                    <div id="home-live-stat2"></div>
+                </div>
+                
+                <div id="away-live-status" class="live-status-panel">
+                    <div id="away-live-name"></div>
+                    <div id="away-live-stat1"></div>
+                    <div id="away-live-stat2"></div>
+                </div>
+                
+                <div class="autoplay-status">オートプレイ中</div>
             </div>
-            <div id="player-status-panel" class="player-status" style="display: none;">
-                <span id="status-name"></span><br>
-                <span id="status-offense"></span>
-                <span id="status-power"></span>
-                <span id="status-speed"></span>
+        </div>
+
+        <div id="chapter-panel">
+            <div class="panel-section">
+                <h3>得点者リスト</h3>
+                <div id="scorer-list"></div>
             </div>
-            <div class="autoplay-status">オートプレイ中</div>
-            <div id="game-over-message" class="game-over-message">試合終了！</div>
+            
+            <div class="panel-section">
+                <h3>ホームチーム (青)</h3>
+                <div class="player-list-header player-list-item" style="font-weight: bold; border-bottom: 1px solid #444;">
+                    <span>名前/役割</span>
+                    <div class="player-ranks">
+                        <span>Speed</span><span>Shot</span><span>Pass</span><span>Dribble</span><span>Tackle</span>
+                    </div>
+                </div>
+                <div id="home-player-list"></div>
+            </div>
+
+            <div class="panel-section">
+                <h3>アウェイチーム (赤)</h3>
+                <div class="player-list-header player-list-item" style="font-weight: bold; border-bottom: 1px solid #444;">
+                    <span>名前/役割</span>
+                    <div class="player-ranks">
+                        <span>Speed</span><span>Shot</span><span>Pass</span><span>Dribble</span><span>Tackle</span>
+                    </div>
+                </div>
+                <div id="away-player-list"></div>
+            </div>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
     <script src="game.js"></script>
+
+    <script>
+        const socket = io();
+        function sendKickoffSignal() {
+            socket.emit('kickoff');
+            document.getElementById('game-message-overlay').style.display = 'none';
+        }
+    </script>
 </body>
 </html>

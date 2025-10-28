@@ -81,6 +81,11 @@ function preload() {
 
     this.load.image('Zoro_away', 'assets/Zoro_away.png');
     this.load.image('Itoshi_away', 'assets/Itoshi_away.png');
+
+    // ★ 以下の2行を追加
+    this.load.image('Takami_home', 'assets/Takami_home.png');
+    this.load.image('Kazemaru_away', 'assets/Kazemaru_away.png');
+    
     console.log("Asset preloading complete.");
 }
 

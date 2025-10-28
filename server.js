@@ -40,13 +40,13 @@ const CENTER_Y = FIELD_HEIGHT / 2;
 const SIDE_Y_L = FIELD_HEIGHT * 0.25;
 const SIDE_Y_R = FIELD_HEIGHT * 0.75;
 const BALL_SPEED_FACTOR = 0.96; // v3.3
-const PLAYER_KICK_RANGE = 20; 
-const PLAYER_SHOT_RANGE_DEFAULT = 300; 
+const PLAYER_KICK_RANGE = 10; 
+const PLAYER_SHOT_RANGE_DEFAULT = 150; 
 const GOAL_POST_Y_TOP = FIELD_HEIGHT * 0.35; 
 const GOAL_POST_Y_BOTTOM = FIELD_HEIGHT * 0.65; 
 const GOAL_LINE_X_HOME = 30; 
 const GOAL_LINE_X_AWAY = FIELD_WIDTH - 30;
-const AI_DEFAULT_CHASE_DISTANCE = 150; 
+const AI_DEFAULT_CHASE_DISTANCE = 100; 
 const AI_PASS_RANGE = 250; 
 const AI_FREE_SPACE_DISTANCE = 70; 
 const AI_PASS_ROUTE_CLEARANCE = 20; 
@@ -59,24 +59,23 @@ const GOAL_HEIGHT = 50;        // この高さ(z)より低いボールのみゴ�
 
 // グローバル定数としてポジションを定義 (変更なし)
 const HOME_POSITIONS = {
-    'player0': [60, CENTER_Y], 'player1': [200, SIDE_Y_L], 'player2': [200, SIDE_Y_R],
-    'player3': [350, CENTER_Y], 'player4': [350, SIDE_Y_L], 'player5': [350, SIDE_Y_R],
+    'player0': [60, CENTER_Y], 'player1': [200, 200], 'player2': [200, 400],
+   'player3': [350, CENTER_Y], 'player4': [350, SIDE_Y_L], 'player5': [350, SIDE_Y_R],
     'player6': [FIELD_WIDTH / 2 - 50, CENTER_Y - 50], 'player7': [FIELD_WIDTH / 2 - 50, CENTER_Y + 50]
 };
 const AWAY_POSITIONS = {
-    'player8': [FIELD_WIDTH - 60, CENTER_Y], 'player9': [FIELD_WIDTH - 200, SIDE_Y_L], 'player10': [FIELD_WIDTH - 200, SIDE_Y_R],
-    'player11': [FIELD_WIDTH - 350, CENTER_Y], 'player12': [FIELD_WIDTH - 350, SIDE_Y_L], 'player13': [FIELD_WIDTH - 350, SIDE_Y_R],
+    'player8': [FIELD_WIDTH - 60, CENTER_Y], 'player9': [FIELD_WIDTH - 200, 200], 'player10': [FIELD_WIDTH - 200, 400],
+'player11': [FIELD_WIDTH - 350, CENTER_Y], 'player12': [FIELD_WIDTH - 350, SIDE_Y_L], 'player13': [FIELD_WIDTH - 350, SIDE_Y_R],
     'player14': [FIELD_WIDTH / 2 + 50, CENTER_Y - 50], 'player15': [FIELD_WIDTH / 2 + 50, CENTER_Y + 50]
 };
 
-
 // --- E-Sランク変換関数 (変更なし) ---
 function toRank(value) {
-    if (value >= 250) return 'S';
+    if (value >= 200) return 'S';
     if (value >= 150) return 'A';
     if (value >= 120) return 'B';
-    if (value >= 90) return 'C';
-    if (value >= 60) return 'D';
+    if (value >= 100) return 'C';
+    if (value >= 80) return 'D';
     return 'E';
 }
 
@@ -95,28 +94,32 @@ for (let i = 0; i < PLAYER_COUNT; i++) {
     if (i === 0) { role = 'GK'; imageKey = 'keeper_home';
     } else if (i === 8) { role = 'GK'; imageKey = 'keeper_away';
     } else if (i === 7) { role = 'FW-R'; imageKey = 'Sakuraba_home'; displayName = 'Sakuraba';
-        speedMult = 1.5; dribbleMult = 3; shotRangeMult = 1.5; 
+        speedMult = 1.2; dribbleMult = 5; shotRangeMult = 1.8; ; shotMult = 5
     } else if (i === 3) { role = 'MF-C'; imageKey = 'Gouda_home'; displayName = 'Gouda';
-        speedMult = 1.5; dribbleMult = 5; shotRangeMult = 1.5; 
+         speedMult = 1.2; dribbleMult = 5; shotRangeMult = 1.8; ; shotMult = 5
+    } else if (i === 5) { role = 'MF-L'; imageKey = 'Takami_home'; displayName = 'Takami';
+        speedMult = 1.8; dribbleMult = 8; ; passMult = 15
     } else if (i === 14) { role = 'FW-L'; imageKey = 'Zoro_away'; displayName = 'Zoro';
-        speedMult = 1.2; shotMult = 2; shotRangeMult = 1.3; 
+        speedMult = 1.2; shotMult = 5; shotRangeMult = 1.3; 
     } else if (i === 11) { role = 'MF-C'; imageKey = 'Itoshi_away'; displayName = 'Itoshi';
-        dribbleMult = 10; shotRangeMult = 2;
+        dribbleMult = 10; shotRangeMult = 2; passMult = 10
+    } else if (i === 12) { role = 'MF-L'; imageKey = 'Kazemaru_away'; displayName = 'Kazemaru'; 
+        dribbleMult = 10;  passMult = 3 ; speedMult = 2
     } else if (i === 1) { role = 'DF-L';
     } else if (i === 2) { role = 'DF-R';
-    } else if (i === 4) { role = 'MF-L'; 
-    } else if (i === 5) { role = 'MF-R'; 
+    } else if (i === 4) { role = 'MF-L';  
+    } else if (i === 5) { role = 'MF-R'; imageKey = 'Takami_home'; displayName = 'Takami';
     } else if (i === 6) { role = 'FW-L';
     } else if (i === 9) { role = 'DF-L';
     } else if (i === 10) { role = 'DF-R';
-    } else if (i === 12) { role = 'MF-L'; 
-    } else if (i === 13) { role = 'MF-R'; 
+    } else if (i === 12) { role = 'MF-L'; imageKey = 'Kazemaru_away'; displayName = 'Kazemaru'; 
+    } else if (i === 13) { role = 'MF-R';
     } else if (i === 15) { role = 'FW-R';
     }
 
     const baseSpeed = 70 + Math.floor(Math.random() * 30);
     const baseShot = 50 + Math.floor(Math.random() * 50);
-    const baseDribble = 70 + Math.floor(Math.random() * 30);
+    const baseDribble = 100 + Math.floor(Math.random() * 30);
     const baseTackle = 70 + Math.floor(Math.random() * 30);
     const finalSpeed = baseSpeed * speedMult;
     const finalShot = baseShot * shotMult;
@@ -506,25 +509,22 @@ function updateAI() {
                 let targetX = player.x; 
                 let targetY = player.y; 
                 
-                if (teamHasBall) {
-                    const nearestOpponent = findNearestOpponent(player);
-                    if (nearestOpponent) {
-                        const angleToOpponent = Math.atan2(nearestOpponent.y - player.y, nearestOpponent.x - player.x);
-                        targetX = player.x - Math.cos(angleToOpponent) * 50;
-                        targetY = player.y - Math.sin(angleToOpponent) * 50;
-                    } else if (basePos) {
-                        targetX = basePos[0] + (myTeam === 'home' ? 50 : -50);
-                        targetY = basePos[1];
-                    } else {
-                        targetX = enemyGoalX;
-                        targetY = enemyGoalY;
-                    }
+               if (teamHasBall) {
+                    // ... (中略) ...
                 } else {
+                    // ★ 変更：守備時（ボール非保持時）のFWのデフォルト位置をペナルティエリア前に変更
+                    if (myTeam === 'home') {
+                        // Homeチーム (青) は右(800)に攻めるので、相手ペナルティエリア前 (630付近) で待機
+                        targetX = FIELD_WIDTH - 170; 
+                    } else {
+                        // Awayチーム (赤) は左(0)に攻めるので、相手ペナルティエリア前 (170付近) で待機
+                        targetX = 170;
+                    }
+
                     if (basePos) {
-                        targetX = basePos[0] + (gameState.ball.x - centerLineX) * 0.1; 
+                        // Y座標（縦の位置）はキックオフ位置を基準に、少しボールに釣られる
                         targetY = basePos[1] + (gameState.ball.y - CENTER_Y) * 0.1;
                     } else {
-                        targetX = (myTeam === 'home') ? centerLineX + 20 : centerLineX - 20;
                         targetY = CENTER_Y;
                     }
                     if (distToBall < AI_DEFAULT_CHASE_DISTANCE) {
@@ -587,7 +587,7 @@ function updateAI() {
 // --- 物理演算 (フェーズ1 + フェーズ4修正) ---
 function updatePhysics() {
     const ball = gameState.ball;
-    const GRAVITY = -0.15; // 重力加速度 (マイナス値)
+    const GRAVITY = -0.45; // 重力加速度 (マイナス値)
     const GROUND_BOUNCE = -0.3; // 地面の反発係数
 
     // ★ フェーズ1 (2): Z軸（高さ）の計算
@@ -710,10 +710,10 @@ function resetBallAndPlayers(isInitialStart = false) {
         console.log(`[Server] Auto-kicking off. Team: ${kickOffTeam}`);
         if (kickOffTeam === 'home') {
             kickOffPlayerId = 'player6';
-            gameState.ball.vx = 48 * GLOBAL_SPEED_FACTOR; // v3.3
+            gameState.ball.vx = 10 * GLOBAL_SPEED_FACTOR; // v3.3
         } else {
             kickOffPlayerId = 'player14';
-            gameState.ball.vx = -48 * GLOBAL_SPEED_FACTOR; // v3.3
+            gameState.ball.vx = -10 * GLOBAL_SPEED_FACTOR; // v3.3
         }
         gameState.ball.vy = (Math.random() - 0.5) * 24 * GLOBAL_SPEED_FACTOR; // v3.3
         isPaused = false; 
